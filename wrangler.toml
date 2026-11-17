@@ -1,0 +1,9 @@
+name = "api-clientes-favoritos"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clientes-favoritos-db"
+# Substitua pelo ID retornado por: npx wrangler d1 create clientes-favoritos-db
+database_id = "e93748eb-8c04-4b56-a8c6-fd04344d4379"
