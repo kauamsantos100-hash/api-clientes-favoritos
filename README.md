@@ -1,82 +1,70 @@
-# API de Cadastro de Clientes e Gerenciamento de Produtos Favoritos
+# API de Clientes e Favoritos
 
-API REST em **JavaScript (ES Modules) + [Hono](https://hono.dev)**, publicada no **Cloudflare Workers**, com persistência no **Cloudflare D1** e consumo da **[Fake Store API](https://fakestoreapi.com)**.
+API REST desenvolvida em JavaScript com Hono e Cloudflare Workers, utilizando Cloudflare D1 para armazenamento de dados e a Fake Store API para consulta de produtos.
 
-## Arquitetura
+O projeto permite cadastrar e gerenciar clientes, consultar produtos e criar listas de produtos favoritos para cada cliente.
 
-```
-Cliente HTTP  <->  Cloudflare Worker (Hono)  <->  Cloudflare D1 (clients, favorites)
-                                             <->  Fake Store API (produtos)
-```
+## Tecnologias utilizadas
 
-## Pré-requisitos
+- **JavaScript** — linguagem principal.
+- **Hono** — framework para criação das rotas da API.
+- **Cloudflare Workers** — hospedagem e execução da API.
+- **Cloudflare D1** — banco de dados SQL.
+- **Fake Store API** — fonte externa de produtos e categorias.
+- **Git e GitHub** — versionamento e armazenamento do código.
+- **GitHub Actions** — automação do processo de publicação.
 
-- Node.js 18+
-- Conta gratuita na [Cloudflare](https://dash.cloudflare.com/sign-up)
+## URL da API
 
-## Como rodar
+A API está publicada e pode ser acessada pelo endereço:
 
-```bash
-npm install
-npx wrangler login
+https://api-clientes-favoritos.kauamsantos100.workers.dev
 
-# 1. Criar o banco e copiar o database_id para o wrangler.toml
-npx wrangler d1 create clientes-favoritos-db
+## Funcionalidades
 
-# 2. Criar as tabelas
-npm run db:local     # desenvolvimento local
-npm run db:remote    # produção
-
-# 3. Rodar localmente
-npm run dev          # http://localhost:8787
-
-# 4. Publicar
-npm run deploy       # https://api-clientes-favoritos.<sua-conta>.workers.dev
-```
+- Cadastro de clientes.
+- Consulta de clientes.
+- Atualização de dados de clientes.
+- Exclusão de clientes.
+- Consulta de produtos.
+- Consulta de produtos por ID.
+- Consulta de categorias.
+- Adição de produtos aos favoritos.
+- Listagem dos favoritos de cada cliente.
+- Remoção de produtos favoritos.
+- Validação de e-mails duplicados.
+- Validação de produtos existentes.
+- Prevenção de produtos duplicados na lista de favoritos.
+- Armazenamento de senhas utilizando hash.
 
 ## Endpoints
 
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/clients` | Cadastra cliente (`{ "name", "email" }`) |
-| GET | `/clients/:id` | Consulta cliente |
-| GET | `/products?category=` | Lista produtos da Fake Store API |
-| GET | `/products/:id` | Detalha um produto |
-| GET | `/clients/:id/favorites` | Lista favoritos do cliente |
-| POST | `/clients/:id/favorites` | Adiciona favorito (`{ "productId": 1 }`) |
-| DELETE | `/clients/:id/favorites/:productId` | Remove favorito |
+Todas as requisições devem utilizar a URL base:
 
-## Exemplos
-
-```bash
-BASE=http://localhost:8787
-
-curl -X POST $BASE/clients -H "Content-Type: application/json" \
-  -d '{"name":"Maria Silva","email":"maria@email.com"}'
-
-curl $BASE/products
-
-curl -X POST $BASE/clients/1/favorites -H "Content-Type: application/json" \
-  -d '{"productId":3}'
-
-curl $BASE/clients/1/favorites
-
-curl -X DELETE $BASE/clients/1/favorites/3
+```text
+https://api-clientes-favoritos.kauamsantos100.workers.dev
 ```
 
-## Decisões
+### Clientes
 
-- **E-mail único** por cliente (409 em duplicidade).
-- Ao favoritar, o produto é **validado na Fake Store API** (404 se não existir) e um snapshot (título, preço, categoria, imagem) é salvo no D1, assim a listagem de favoritos não depende da API externa.
-- `UNIQUE (client_id, product_id)` impede favoritos duplicados (409).
-- `ON DELETE CASCADE` remove os favoritos se o cliente for removido.
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/clients` | Lista todos os clientes |
+| GET | `/clients/:id` | Consulta um cliente |
+| POST | `/clients` | Cadastra um cliente |
+| PUT | `/clients/:id` | Atualiza um cliente |
+| DELETE | `/clients/:id` | Exclui um cliente |
 
-## Deploy automático (opcional)
+### Produtos
 
-O workflow `.github/workflows/deploy.yml` publica no Workers a cada push na `main`.
-Cadastre em **Settings → Secrets and variables → Actions** os secrets `CLOUDFLARE_API_TOKEN`
-(template "Edit Cloudflare Workers") e `CLOUDFLARE_ACCOUNT_ID`.
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/products` | Lista os produtos |
+| GET | `/products/:id` | Consulta um produto pelo ID |
+| GET | `/categories` | Lista as categorias |
 
-## Licença
+### Favoritos
 
-MIT
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/clients/: 
