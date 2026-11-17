@@ -10,7 +10,6 @@ app.use("*", cors());
 
 // ---------- Helpers ----------
 
-// Consulta a Fake Store API
 async function fakeStore(path) {
   const res = await fetch(`${FAKE_STORE}${path}`, {
     headers: {
@@ -20,6 +19,7 @@ async function fakeStore(path) {
   });
 
   if (res.status === 404) return null;
+
   if (!res.ok) {
     throw new Error(`Fake Store API respondeu ${res.status}`);
   }
@@ -30,13 +30,11 @@ async function fakeStore(path) {
   return JSON.parse(text);
 }
 
-// Validação de ID
 function parseId(value) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-// Verifica se o cliente existe
 async function clientExists(db, id) {
   return db.prepare(
     "SELECT id FROM clients WHERE id = ?"
@@ -85,10 +83,13 @@ app.get("/", (c) =>
     name: "API de Cadastro de Clientes e Produtos Favoritos",
     endpoints: [
       "POST /clients",
+      "GET /clients",
       "GET /clients/:id",
+      "PUT /clients/:id",
       "DELETE /clients/:id",
       "GET /products",
       "GET /products/:id",
+      "GET /categories",
       "GET /clients/:id/favorites",
       "POST /clients/:id/favorites",
       "DELETE /clients/:id/favorites/:productId",
@@ -120,7 +121,6 @@ app.post("/clients", async (c) => {
   }
 
   try {
-    // Gera o hash antes de salvar
     const passwordHash = await hashPassword(password);
 
     const result = await c.env.DB.prepare(`
@@ -131,7 +131,6 @@ app.post("/clients", async (c) => {
       .bind(name, email, passwordHash)
       .first();
 
-    // Não retorna a senha nem o hash
     return c.json(result, 201);
 
   } catch (e) {
@@ -143,6 +142,17 @@ app.post("/clients", async (c) => {
 
     throw e;
   }
+});
+
+// Listar todos os clientes
+app.get("/clients", async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT id, name, email, created_at
+    FROM clients
+    ORDER BY id DESC
+  `).all();
+
+  return c.json(results);
 });
 
 // Consultar cliente por ID
@@ -168,6 +178,95 @@ app.get("/clients/:id", async (c) => {
   }
 
   return c.json(client);
+});
+
+// Atualizar cliente
+app.put("/clients/:id", async (c) => {
+  const id = parseId(c.req.param("id"));
+
+  if (!id) {
+    return c.json({ error: "ID inválido." }, 400);
+  }
+
+  const body = await c.req.json().catch(() => null);
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return c.json({ error: "Corpo JSON inválido." }, 400);
+  }
+
+  const current = await c.env.DB.prepare(`
+    SELECT id, name, email
+    FROM clients
+    WHERE id = ?
+  `).bind(id).first();
+
+  if (!current) {
+    return c.json({
+      error: "Cliente não encontrado.",
+    }, 404);
+  }
+
+  const name = body.name === undefined
+    ? current.name
+    : typeof body.name === "string" ? body.name.trim() : "";
+
+  const email = body.email === undefined
+    ? current.email
+    : typeof body.email === "string"
+      ? body.email.trim().toLowerCase()
+      : "";
+
+  if (!name || !EMAIL_RE.test(email)) {
+    return c.json({
+      error: "Informe nome e e-mail válido.",
+    }, 400);
+  }
+
+  if (
+    body.password !== undefined &&
+    (typeof body.password !== "string" || body.password.length < 8)
+  ) {
+    return c.json({
+      error: "A senha deve ter pelo menos 8 caracteres.",
+    }, 400);
+  }
+
+  try {
+    if (body.password !== undefined) {
+      const passwordHash = await hashPassword(body.password);
+
+      const updated = await c.env.DB.prepare(`
+        UPDATE clients
+        SET name = ?, email = ?, password_hash = ?
+        WHERE id = ?
+        RETURNING id, name, email, created_at
+      `)
+        .bind(name, email, passwordHash, id)
+        .first();
+
+      return c.json(updated);
+    }
+
+    const updated = await c.env.DB.prepare(`
+      UPDATE clients
+      SET name = ?, email = ?
+      WHERE id = ?
+      RETURNING id, name, email, created_at
+    `)
+      .bind(name, email, id)
+      .first();
+
+    return c.json(updated);
+
+  } catch (e) {
+    if (String(e).includes("UNIQUE")) {
+      return c.json({
+        error: "E-mail já cadastrado.",
+      }, 409);
+    }
+
+    throw e;
+  }
 });
 
 // Excluir cliente e seus favoritos
@@ -201,6 +300,7 @@ app.delete("/clients/:id", async (c) => {
 
 // ---------- Produtos ----------
 
+// Listar produtos
 app.get("/products", async (c) => {
   const category = c.req.query("category");
 
@@ -213,6 +313,7 @@ app.get("/products", async (c) => {
   return c.json(data ?? []);
 });
 
+// Consultar produto por ID
 app.get("/products/:id", async (c) => {
   const id = parseId(c.req.param("id"));
 
@@ -229,6 +330,13 @@ app.get("/products/:id", async (c) => {
   }
 
   return c.json(product);
+});
+
+// Listar categorias
+app.get("/categories", async (c) => {
+  const categories = await fakeStore("/products/categories");
+
+  return c.json(categories ?? []);
 });
 
 // ---------- Favoritos ----------
