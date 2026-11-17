@@ -6,9 +6,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const app = new Hono();
 app.use("*", cors());
-
-} 
-
+ git add .
+git commit -m "Corrige erro de sintaxe no Worker"
+git push origin main
 // ---------- Helpers ----------
 
 /** Consulta a Fake Store API. Retorna null quando o recurso não existe. */
