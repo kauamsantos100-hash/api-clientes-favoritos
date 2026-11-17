@@ -7,6 +7,38 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const app = new Hono();
 app.use("*", cors());
 
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+
+    const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(password),
+        "PBKDF2",
+        false,
+        ["deriveBits"]
+    );
+
+    const hash = await crypto.subtle.deriveBits(
+        {
+            name: "PBKDF2",
+            salt: salt,
+            iterations: 100000,
+            hash: "SHA-256"
+        },
+        key,
+        256
+    );
+
+    const saltBase64 = btoa(String.fromCharCode(...salt));
+    const hashBase64 = btoa(
+        String.fromCharCode(...new Uint8Array(hash))
+    );
+
+    return `${saltBase64}:${hashBase64}`;
+} 
+
 // ---------- Helpers ----------
 
 /** Consulta a Fake Store API. Retorna null quando o recurso não existe. */
