@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -5,110 +6,430 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101827">
   <title>Favorita — Clientes & Produtos</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="app-shell">
+
+    <!-- MENU LATERAL -->
     <aside class="sidebar">
-      <a class="brand" href="#" aria-label="Favorita início"><span class="brand-mark">f</span><span>favorita<span class="brand-dot">.</span></span></a>
+
+      <a class="brand" href="#" aria-label="Favorita início">
+        <span class="brand-mark">f</span>
+        <span>favorita<span class="brand-dot">.</span></span>
+      </a>
+
       <p class="side-label">MENU PRINCIPAL</p>
+
       <nav class="nav">
-        <button class="nav-link active" data-view="catalog"><span>▦</span> Catálogo</button>
-        <button class="nav-link" data-view="favorites"><span>♡</span> Meus favoritos <b id="favorite-count" class="nav-count">0</b></button>
-        <button class="nav-link" data-view="profile"><span>♙</span> Meu cadastro</button>
+        <button class="nav-link active" data-view="catalog">
+          <span>▦</span> Catálogo
+        </button>
+
+        <button class="nav-link" data-view="favorites">
+          <span>♡</span> Meus favoritos
+          <b id="favorite-count" class="nav-count">0</b>
+        </button>
+
+        <button class="nav-link" data-view="profile">
+          <span>♙</span> Meu cadastro
+        </button>
       </nav>
+
       <div class="sidebar-bottom">
-        <div class="side-note"><span class="note-icon">✦</span><div><strong>Encontre o que ama.</strong><small>Salve seus produtos favoritos em um só lugar.</small></div></div>
-        <div class="api-status"><span class="status-dot"></span> API conectada</div>
+
+        <div class="side-note">
+          <span class="note-icon">✦</span>
+          <div>
+            <strong>Encontre o que ama.</strong>
+            <small>Salve seus produtos favoritos em um só lugar.</small>
+          </div>
+        </div>
+
+        <div class="api-status">
+          <span class="status-dot"></span>
+          API conectada
+        </div>
+
       </div>
     </aside>
 
+    <!-- CONTEÚDO PRINCIPAL -->
     <main class="main">
+
       <header class="topbar">
-        <div class="mobile-brand"><span class="brand-mark">f</span> favorita<span class="brand-dot">.</span></div>
-        <div class="breadcrumb">Loja <span>/</span> <strong id="breadcrumb-current">Catálogo</strong></div>
+
+        <div class="mobile-brand">
+          <span class="brand-mark">f</span>
+          favorita<span class="brand-dot">.</span>
+        </div>
+
+        <div class="breadcrumb">
+          Loja <span>/</span>
+          <strong id="breadcrumb-current">Catálogo</strong>
+        </div>
+
         <div class="top-actions">
-          <span class="user-chip"><span class="avatar" id="avatar-letter">?</span><span id="header-user">Visitante</span></span>
-          <button class="outline-btn small" id="change-client">Acessar cadastro</button>
+
+          <span class="user-chip">
+            <span class="avatar" id="avatar-letter">?</span>
+            <span id="header-user">Visitante</span>
+          </span>
+
+          <button class="outline-btn small" id="change-client">
+            Entrar / Cadastrar
+          </button>
+
         </div>
       </header>
 
+      <!-- CATÁLOGO -->
       <section id="catalog-view" class="view active">
+
         <div class="hero">
+
           <div class="hero-copy">
+
             <span class="eyebrow">CURADORIA PARA VOCÊ</span>
-            <h1>Descubra. Escolha.<br><em>Favorite.</em></h1>
-            <p>Explore produtos, encontre seus próximos favoritos e tenha tudo organizado em um só lugar.</p>
-            <button class="hero-btn" id="explore-btn">Explorar produtos <span>→</span></button>
+
+            <h1>
+              Descubra. Escolha.<br>
+              <em>Favorite.</em>
+            </h1>
+
+            <p>
+              Explore produtos, encontre seus próximos favoritos
+              e tenha tudo organizado em um só lugar.
+            </p>
+
+            <button class="hero-btn" id="explore-btn">
+              Explorar produtos <span>→</span>
+            </button>
+
           </div>
+
           <div class="hero-art" aria-hidden="true">
-            <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
-            <div class="hero-product product-a">✧</div><div class="hero-product product-b">♡</div>
-            <div class="hero-product product-c">✦</div><div class="hero-tag">YOUR<br>FAVORITES</div>
+            <div class="hero-orbit orbit-one"></div>
+            <div class="hero-orbit orbit-two"></div>
+
+            <div class="hero-product product-a">✧</div>
+            <div class="hero-product product-b">♡</div>
+            <div class="hero-product product-c">✦</div>
+
+            <div class="hero-tag">
+              YOUR<br>
+              FAVORITES
+            </div>
           </div>
+
         </div>
+
         <div class="section-heading">
-          <div><span class="eyebrow">SELEÇÃO ESPECIAL</span><h2>Explore o catálogo</h2></div>
-          <div class="filters">
-            <label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="Buscar produto..."></label>
-            <select id="category-filter" aria-label="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+
+          <div>
+            <span class="eyebrow">SELEÇÃO ESPECIAL</span>
+            <h2>Explore o catálogo</h2>
           </div>
+
+          <div class="filters">
+
+            <label class="search-box">
+              <span>⌕</span>
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Buscar produto..."
+              >
+            </label>
+
+            <select id="category-filter" aria-label="Filtrar por categoria">
+              <option value="">Todas as categorias</option>
+            </select>
+
+          </div>
+
         </div>
-        <div id="product-grid" class="product-grid"><div class="loading">Carregando produtos...</div></div>
+
+        <div id="product-grid" class="product-grid">
+          <div class="loading">Carregando produtos...</div>
+        </div>
+
       </section>
 
+      <!-- FAVORITOS -->
       <section id="favorites-view" class="view">
-        <div class="page-intro"><span class="eyebrow">SUA COLEÇÃO</span><h1>Meus <em>favoritos.</em></h1><p>Os produtos que você guardou para encontrar depois.</p></div>
-        <div id="favorites-grid" class="product-grid"></div>
-      </section>
 
-      <section id="profile-view" class="view">
-        <div class="page-intro"><span class="eyebrow">SUA CONTA</span><h1>Meu <em>cadastro.</em></h1><p>Atualize suas informações ou gerencie seu cadastro.</p></div>
-        <div class="profile-card">
-          <div class="profile-head"><div class="profile-avatar" id="profile-avatar">?</div><div><span class="eyebrow">PERFIL DO CLIENTE</span><h2 id="profile-name">Nenhum cliente selecionado</h2><p id="profile-id">Cadastre-se para começar</p></div></div>
-          <form id="profile-form" class="form-grid">
-            <label>Nome completo<input id="profile-name-input" required minlength="2" placeholder="Seu nome"></label>
-            <label>E-mail<input id="profile-email-input" type="email" required placeholder="voce@email.com"></label>
-            <label class="full">Nova senha <small>(opcional — mínimo 8 caracteres)</small><input id="profile-password-input" type="password" minlength="8" placeholder="Deixe em branco para manter a atual"></label>
-            <div class="form-actions full"><button class="primary-btn" type="submit">Salvar alterações</button><button class="danger-btn" type="button" id="delete-client">Excluir cadastro</button></div>
-          </form>
-          <p class="muted-note">A API não possui autenticação/login. Para acessar um cadastro existente neste navegador, informe o ID do cliente.</p>
+        <div class="page-intro">
+
+          <span class="eyebrow">SUA COLEÇÃO</span>
+
+          <h1>
+            Meus <em>favoritos.</em>
+          </h1>
+
+          <p>
+            Os produtos que você guardou para encontrar depois.
+          </p>
+
         </div>
+
+        <div id="favorites-grid" class="product-grid"></div>
+
       </section>
 
-      <footer><span>© 2026 Favorita</span><span>Feito para facilitar suas escolhas <b>✦</b></span></footer>
+      <!-- PERFIL -->
+      <section id="profile-view" class="view">
+
+        <div class="page-intro">
+
+          <span class="eyebrow">SUA CONTA</span>
+
+          <h1>
+            Meu <em>cadastro.</em>
+          </h1>
+
+          <p>
+            Atualize suas informações ou gerencie seu cadastro.
+          </p>
+
+        </div>
+
+        <div class="profile-card">
+
+          <div class="profile-head">
+
+            <div class="profile-avatar" id="profile-avatar">?</div>
+
+            <div>
+              <span class="eyebrow">PERFIL DO CLIENTE</span>
+
+              <h2 id="profile-name">
+                Nenhum cliente selecionado
+              </h2>
+
+              <p id="profile-id">
+                Entre na sua conta para começar
+              </p>
+            </div>
+
+          </div>
+
+          <form id="profile-form" class="form-grid">
+
+            <label>
+              Nome completo
+              <input
+                id="profile-name-input"
+                required
+                minlength="2"
+                placeholder="Seu nome"
+              >
+            </label>
+
+            <label>
+              E-mail
+              <input
+                id="profile-email-input"
+                type="email"
+                required
+                placeholder="voce@email.com"
+              >
+            </label>
+
+            <label class="full">
+              Nova senha
+              <small>(opcional — mínimo 8 caracteres)</small>
+
+              <input
+                id="profile-password-input"
+                type="password"
+                minlength="8"
+                placeholder="Deixe em branco para manter a atual"
+              >
+            </label>
+
+            <div class="form-actions full">
+
+              <button class="primary-btn" type="submit">
+                Salvar alterações
+              </button>
+
+              <button
+                class="danger-btn"
+                type="button"
+                id="delete-client"
+              >
+                Excluir cadastro
+              </button>
+
+            </div>
+
+          </form>
+
+          <p class="muted-note">
+            Seus dados são gerenciados pela API Favorita.
+            Utilize seu e-mail e sua senha para entrar na sua conta.
+          </p>
+
+        </div>
+
+      </section>
+
+      <footer>
+        <span>© 2026 Favorita</span>
+        <span>Feito para facilitar suas escolhas <b>✦</b></span>
+      </footer>
+
     </main>
   </div>
 
+  <!-- MODAL DE CADASTRO E LOGIN -->
   <div class="modal-backdrop" id="client-modal">
+
     <div class="modal client-modal">
-      <button class="close-modal" data-close="client-modal" aria-label="Fechar">×</button>
-      <span class="eyebrow">BEM-VINDO À FAVORITA</span><h2>Vamos começar?</h2>
-      <p>Crie seu cadastro ou informe o ID de um cliente já cadastrado.</p>
-      <div class="modal-tabs"><button class="tab active" data-tab="register">Criar cadastro</button><button class="tab" data-tab="existing">Já tenho ID</button></div>
+
+      <button
+        class="close-modal"
+        data-close="client-modal"
+        aria-label="Fechar"
+      >
+        ×
+      </button>
+
+      <span class="eyebrow">BEM-VINDO À FAVORITA</span>
+
+      <h2>Vamos começar?</h2>
+
+      <p>
+        Crie sua conta ou entre utilizando seu e-mail e senha.
+      </p>
+
+      <!-- ABAS -->
+      <div class="modal-tabs">
+
+        <button class="tab active" data-tab="register">
+          Criar cadastro
+        </button>
+
+        <button class="tab" data-tab="existing">
+          Já tenho conta
+        </button>
+
+      </div>
+
+      <!-- FORMULÁRIO DE CADASTRO -->
       <form id="register-form" class="stack-form">
-        <label>Nome<input id="register-name" required minlength="2" placeholder="Seu nome completo"></label>
-        <label>E-mail<input id="register-email" type="email" required placeholder="voce@email.com"></label>
-        <label>Senha<input id="register-password" type="password" required minlength="8" placeholder="Mínimo de 8 caracteres"></label>
-        <button class="primary-btn full-width" type="submit">Criar minha conta</button>
+
+        <label>
+          Nome
+
+          <input
+            id="register-name"
+            type="text"
+            required
+            minlength="2"
+            placeholder="Seu nome completo"
+            autocomplete="name"
+          >
+        </label>
+
+        <label>
+          E-mail
+
+          <input
+            id="register-email"
+            type="email"
+            required
+            placeholder="voce@email.com"
+            autocomplete="email"
+          >
+        </label>
+
+        <label>
+          Senha
+
+          <input
+            id="register-password"
+            type="password"
+            required
+            minlength="8"
+            placeholder="Mínimo de 8 caracteres"
+            autocomplete="new-password"
+          >
+        </label>
+
+        <button class="primary-btn full-width" type="submit">
+          Criar minha conta
+        </button>
+
       </form>
+
+      <!-- FORMULÁRIO DE LOGIN -->
       <form id="existing-form" class="stack-form hidden">
-        <label>ID do cliente<input id="existing-id" type="number" min="1" required placeholder="Ex.: 1"></label>
-        <button class="primary-btn full-width" type="submit">Acessar cadastro</button>
+
+        <label>
+          E-mail
+
+          <input
+            id="login-email"
+            type="email"
+            required
+            placeholder="Digite seu e-mail"
+            autocomplete="email"
+          >
+        </label>
+
+        <label>
+          Senha
+
+          <input
+            id="login-password"
+            type="password"
+            required
+            placeholder="Digite sua senha"
+            autocomplete="current-password"
+          >
+        </label>
+
+        <button class="primary-btn full-width" type="submit">
+          Entrar na minha conta
+        </button>
+
       </form>
+
     </div>
   </div>
 
+  <!-- MODAL DE PRODUTO -->
   <div class="modal-backdrop" id="product-modal">
+
     <div class="modal product-modal">
-      <button class="close-modal" data-close="product-modal" aria-label="Fechar">×</button>
+
+      <button
+        class="close-modal"
+        data-close="product-modal"
+        aria-label="Fechar"
+      >
+        ×
+      </button>
+
       <div id="product-detail"></div>
+
     </div>
   </div>
+
+  <!-- NOTIFICAÇÕES -->
   <div id="toast" class="toast" role="status"></div>
+
+  <!-- JAVASCRIPT -->
   <script src="app.js"></script>
+
 </body>
 </html>
