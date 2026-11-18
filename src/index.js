@@ -2,53 +2,23 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+const app = new Hono();
+
 const FAKE_STORE = "https://fakestoreapi.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const app = new Hono();
 app.use("*", cors());
 
-// ---------- Helpers ----------
+// =====================================================
+// FUNÇÕES AUXILIARES
+// =====================================================
 
-async function fakeStore(path) {
-  const res = await fetch(`${FAKE_STORE}${path}`, {
-    headers: {
-      "User-Agent": "api-clientes-favoritos/1.0",
-      Accept: "application/json",
-    },
-  });
-
-  if (res.status === 404) return null;
-
-  if (!res.ok) {
-    throw new Error(`Fake Store API respondeu ${res.status}`);
-  }
-
-  const text = await res.text();
-  if (!text) return null;
-
-  return JSON.parse(text);
-}
-
-function parseId(value) {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-async function clientExists(db, id) {
-  return db.prepare(
-    "SELECT id FROM clients WHERE id = ?"
-  ).bind(id).first();
-}
-
-// Gera hash da senha
 async function hashPassword(password) {
-  const encoder = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
   const key = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(password),
+    new TextEncoder().encode(password),
     "PBKDF2",
     false,
     ["deriveBits"]
@@ -59,16 +29,13 @@ async function hashPassword(password) {
       name: "PBKDF2",
       salt,
       iterations: 100000,
-      hash: "SHA-256",
+      hash: "SHA-256"
     },
     key,
     256
   );
 
-  const saltBase64 = btoa(
-    String.fromCharCode(...salt)
-  );
-
+  const saltBase64 = btoa(String.fromCharCode(...salt));
   const hashBase64 = btoa(
     String.fromCharCode(...new Uint8Array(hash))
   );
@@ -76,13 +43,75 @@ async function hashPassword(password) {
   return `${saltBase64}:${hashBase64}`;
 }
 
-// ---------- Raiz ----------
+async function verifyPassword(password, storedHash) {
+  try {
+    const [saltBase64, hashBase64] = storedHash.split(":");
 
-app.get("/", (c) =>
-  c.json({
-    name: "API de Cadastro de Clientes e Produtos Favoritos",
+    if (!saltBase64 || !hashBase64) {
+      return false;
+    }
+
+    const salt = Uint8Array.from(
+      atob(saltBase64),
+      char => char.charCodeAt(0)
+    );
+
+    const originalHash = Uint8Array.from(
+      atob(hashBase64),
+      char => char.charCodeAt(0)
+    );
+
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+
+    const result = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256"
+      },
+      key,
+      256
+    );
+
+    const calculatedHash = new Uint8Array(result);
+
+    if (calculatedHash.length !== originalHash.length) {
+      return false;
+    }
+
+    let difference = 0;
+
+    for (let i = 0; i < calculatedHash.length; i++) {
+      difference |= calculatedHash[i] ^ originalHash[i];
+    }
+
+    return difference === 0;
+  } catch {
+    return false;
+  }
+}
+
+function validateEmail(email) {
+  return EMAIL_RE.test(email);
+}
+
+// =====================================================
+// ROTA INICIAL
+// =====================================================
+
+app.get("/", (c) => {
+  return c.json({
+    message: "API de Clientes e Produtos Favoritos funcionando!",
     endpoints: [
       "POST /clients",
+      "POST /login",
       "GET /clients",
       "GET /clients/:id",
       "PUT /clients/:id",
@@ -92,19 +121,17 @@ app.get("/", (c) =>
       "GET /categories",
       "GET /clients/:id/favorites",
       "POST /clients/:id/favorites",
-      "DELETE /clients/:id/favorites/:productId",
-    ],
-  })
-);
+      "DELETE /clients/:id/favorites/:productId"
+    ]
+  });
+});
 
-// ---------- Clientes ----------
+// =====================================================
+// AUTENTICAÇÃO
+// =====================================================
 
-// Cadastrar cliente
-app.post("/clients", async (c) => {
+app.post("/login", async (c) => {
   const body = await c.req.json().catch(() => null);
-
-  const name =
-    typeof body?.name === "string" ? body.name.trim() : "";
 
   const email =
     typeof body?.email === "string"
@@ -112,300 +139,619 @@ app.post("/clients", async (c) => {
       : "";
 
   const password =
-    typeof body?.password === "string" ? body.password : "";
+    typeof body?.password === "string"
+      ? body.password
+      : "";
 
-  if (!name || !EMAIL_RE.test(email) || password.length < 8) {
-    return c.json({
-      error: "Informe nome, e-mail válido e senha com pelo menos 8 caracteres.",
-    }, 400);
+  if (!email || !password) {
+    return c.json(
+      { error: "Informe o e-mail e a senha." },
+      400
+    );
   }
 
   try {
+    const client = await c.env.DB.prepare(`
+      SELECT id, name, email, password_hash, created_at
+      FROM clients
+      WHERE LOWER(email) = LOWER(?)
+    `)
+      .bind(email)
+      .first();
+
+    if (!client || !client.password_hash) {
+      return c.json(
+        { error: "E-mail ou senha incorretos." },
+        401
+      );
+    }
+
+    const validPassword = await verifyPassword(
+      password,
+      client.password_hash
+    );
+
+    if (!validPassword) {
+      return c.json(
+        { error: "E-mail ou senha incorretos." },
+        401
+      );
+    }
+
+    return c.json({
+      message: "Login realizado com sucesso.",
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      created_at: client.created_at
+    });
+  } catch (error) {
+    console.error("Erro no login:", error);
+
+    return c.json(
+      { error: "Erro ao realizar login." },
+      500
+    );
+  }
+});
+
+// =====================================================
+// CLIENTES
+// =====================================================
+
+// CADASTRAR CLIENTE
+app.post("/clients", async (c) => {
+  const body = await c.req.json().catch(() => null);
+
+  const name =
+    typeof body?.name === "string"
+      ? body.name.trim()
+      : "";
+
+  const email =
+    typeof body?.email === "string"
+      ? body.email.trim().toLowerCase()
+      : "";
+
+  const password =
+    typeof body?.password === "string"
+      ? body.password
+      : "";
+
+  if (!name || !email || !password) {
+    return c.json(
+      { error: "Preencha nome, e-mail e senha." },
+      400
+    );
+  }
+
+  if (!validateEmail(email)) {
+    return c.json(
+      { error: "Informe um e-mail válido." },
+      400
+    );
+  }
+
+  if (password.length < 8) {
+    return c.json(
+      { error: "A senha deve ter pelo menos 8 caracteres." },
+      400
+    );
+  }
+
+  try {
+    const existingClient = await c.env.DB.prepare(`
+      SELECT id FROM clients
+      WHERE LOWER(email) = LOWER(?)
+    `)
+      .bind(email)
+      .first();
+
+    if (existingClient) {
+      return c.json(
+        { error: "Este e-mail já está cadastrado." },
+        409
+      );
+    }
+
     const passwordHash = await hashPassword(password);
 
     const result = await c.env.DB.prepare(`
       INSERT INTO clients (name, email, password_hash)
       VALUES (?, ?, ?)
-      RETURNING id, name, email, created_at
     `)
       .bind(name, email, passwordHash)
+      .run();
+
+    const client = await c.env.DB.prepare(`
+      SELECT id, name, email, created_at
+      FROM clients
+      WHERE id = ?
+    `)
+      .bind(result.meta.last_row_id)
       .first();
 
-    return c.json(result, 201);
+    return c.json(
+      {
+        message: "Cliente cadastrado com sucesso!",
+        client
+      },
+      201
+    );
+  } catch (error) {
+    console.error("Erro ao cadastrar cliente:", error);
 
-  } catch (e) {
-    if (String(e).includes("UNIQUE")) {
-      return c.json({
-        error: "E-mail já cadastrado.",
-      }, 409);
+    return c.json(
+      { error: "Erro ao cadastrar cliente." },
+      500
+    );
+  }
+});
+
+// LISTAR CLIENTES
+app.get("/clients", async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT id, name, email, created_at
+      FROM clients
+      ORDER BY id DESC
+    `).all();
+
+    return c.json(result.results);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Erro ao listar clientes." },
+      500
+    );
+  }
+});
+
+// BUSCAR CLIENTE POR ID
+app.get("/clients/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return c.json(
+      { error: "ID inválido." },
+      400
+    );
+  }
+
+  try {
+    const client = await c.env.DB.prepare(`
+      SELECT id, name, email, created_at
+      FROM clients
+      WHERE id = ?
+    `)
+      .bind(id)
+      .first();
+
+    if (!client) {
+      return c.json(
+        { error: "Cliente não encontrado." },
+        404
+      );
     }
 
-    throw e;
+    return c.json(client);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Erro ao buscar cliente." },
+      500
+    );
   }
 });
 
-// Listar todos os clientes
-app.get("/clients", async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT id, name, email, created_at
-    FROM clients
-    ORDER BY id DESC
-  `).all();
-
-  return c.json(results);
-});
-
-// Consultar cliente por ID
-app.get("/clients/:id", async (c) => {
-  const id = parseId(c.req.param("id"));
-
-  if (!id) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  const client = await c.env.DB.prepare(`
-    SELECT id, name, email, created_at
-    FROM clients
-    WHERE id = ?
-  `)
-    .bind(id)
-    .first();
-
-  if (!client) {
-    return c.json({
-      error: "Cliente não encontrado.",
-    }, 404);
-  }
-
-  return c.json(client);
-});
-
-// Atualizar cliente
+// ATUALIZAR CLIENTE
 app.put("/clients/:id", async (c) => {
-  const id = parseId(c.req.param("id"));
-
-  if (!id) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
+  const id = Number(c.req.param("id"));
   const body = await c.req.json().catch(() => null);
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return c.json({ error: "Corpo JSON inválido." }, 400);
+  if (!Number.isInteger(id) || id <= 0) {
+    return c.json(
+      { error: "ID inválido." },
+      400
+    );
   }
 
-  const current = await c.env.DB.prepare(`
-    SELECT id, name, email
-    FROM clients
-    WHERE id = ?
-  `).bind(id).first();
-
-  if (!current) {
-    return c.json({
-      error: "Cliente não encontrado.",
-    }, 404);
+  if (!body || typeof body !== "object") {
+    return c.json(
+      { error: "Dados inválidos." },
+      400
+    );
   }
 
-  const name = body.name === undefined
-    ? current.name
-    : typeof body.name === "string" ? body.name.trim() : "";
+  const name =
+    typeof body.name === "string"
+      ? body.name.trim()
+      : "";
 
-  const email = body.email === undefined
-    ? current.email
-    : typeof body.email === "string"
+  const email =
+    typeof body.email === "string"
       ? body.email.trim().toLowerCase()
       : "";
 
-  if (!name || !EMAIL_RE.test(email)) {
-    return c.json({
-      error: "Informe nome e e-mail válido.",
-    }, 400);
+  if (!name || !email) {
+    return c.json(
+      { error: "Informe nome e e-mail." },
+      400
+    );
   }
 
-  if (
-    body.password !== undefined &&
-    (typeof body.password !== "string" || body.password.length < 8)
-  ) {
-    return c.json({
-      error: "A senha deve ter pelo menos 8 caracteres.",
-    }, 400);
+  if (!validateEmail(email)) {
+    return c.json(
+      { error: "Informe um e-mail válido." },
+      400
+    );
   }
 
   try {
+    const client = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE id = ?
+    `)
+      .bind(id)
+      .first();
+
+    if (!client) {
+      return c.json(
+        { error: "Cliente não encontrado." },
+        404
+      );
+    }
+
+    const duplicateEmail = await c.env.DB.prepare(`
+      SELECT id FROM clients
+      WHERE LOWER(email) = LOWER(?) AND id != ?
+    `)
+      .bind(email, id)
+      .first();
+
+    if (duplicateEmail) {
+      return c.json(
+        { error: "Este e-mail já está sendo utilizado." },
+        409
+      );
+    }
+
     if (body.password !== undefined) {
+      if (
+        typeof body.password !== "string" ||
+        body.password.length < 8
+      ) {
+        return c.json(
+          { error: "A senha deve ter pelo menos 8 caracteres." },
+          400
+        );
+      }
+
       const passwordHash = await hashPassword(body.password);
 
-      const updated = await c.env.DB.prepare(`
+      await c.env.DB.prepare(`
         UPDATE clients
         SET name = ?, email = ?, password_hash = ?
         WHERE id = ?
-        RETURNING id, name, email, created_at
       `)
         .bind(name, email, passwordHash, id)
-        .first();
-
-      return c.json(updated);
+        .run();
+    } else {
+      await c.env.DB.prepare(`
+        UPDATE clients
+        SET name = ?, email = ?
+        WHERE id = ?
+      `)
+        .bind(name, email, id)
+        .run();
     }
 
-    const updated = await c.env.DB.prepare(`
-      UPDATE clients
-      SET name = ?, email = ?
+    const updatedClient = await c.env.DB.prepare(`
+      SELECT id, name, email, created_at
+      FROM clients
       WHERE id = ?
-      RETURNING id, name, email, created_at
     `)
-      .bind(name, email, id)
+      .bind(id)
       .first();
 
-    return c.json(updated);
+    return c.json({
+      message: "Cliente atualizado com sucesso!",
+      client: updatedClient
+    });
+  } catch (error) {
+    console.error(error);
 
-  } catch (e) {
-    if (String(e).includes("UNIQUE")) {
-      return c.json({
-        error: "E-mail já cadastrado.",
-      }, 409);
-    }
-
-    throw e;
+    return c.json(
+      { error: "Erro ao atualizar cliente." },
+      500
+    );
   }
 });
 
-// Excluir cliente e seus favoritos
+// EXCLUIR CLIENTE
 app.delete("/clients/:id", async (c) => {
-  const id = parseId(c.req.param("id"));
+  const id = Number(c.req.param("id"));
 
-  if (!id) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  if (!(await clientExists(c.env.DB, id))) {
-    return c.json({
-      error: "Cliente não encontrado.",
-    }, 404);
-  }
-
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      "DELETE FROM favorites WHERE client_id = ?"
-    ).bind(id),
-
-    c.env.DB.prepare(
-      "DELETE FROM clients WHERE id = ?"
-    ).bind(id),
-  ]);
-
-  return c.json({
-    message: "Cliente e favoritos excluídos com sucesso.",
-  });
-});
-
-// ---------- Produtos ----------
-
-// Listar produtos
-app.get("/products", async (c) => {
-  const category = c.req.query("category");
-
-  const path = category
-    ? `/products/category/${encodeURIComponent(category)}`
-    : "/products";
-
-  const data = await fakeStore(path);
-
-  return c.json(data ?? []);
-});
-
-// Consultar produto por ID
-app.get("/products/:id", async (c) => {
-  const id = parseId(c.req.param("id"));
-
-  if (!id) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  const product = await fakeStore(`/products/${id}`);
-
-  if (!product) {
-    return c.json({
-      error: "Produto não encontrado.",
-    }, 404);
-  }
-
-  return c.json(product);
-});
-
-// Listar categorias
-app.get("/categories", async (c) => {
-  const categories = await fakeStore("/products/categories");
-
-  return c.json(categories ?? []);
-});
-
-// ---------- Favoritos ----------
-
-// Listar favoritos
-app.get("/clients/:id/favorites", async (c) => {
-  const clientId = parseId(c.req.param("id"));
-
-  if (!clientId) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  if (!(await clientExists(c.env.DB, clientId))) {
-    return c.json({
-      error: "Cliente não encontrado.",
-    }, 404);
-  }
-
-  const { results } = await c.env.DB.prepare(`
-    SELECT product_id AS productId, title, price,
-           category, image, created_at
-    FROM favorites
-    WHERE client_id = ?
-    ORDER BY created_at DESC, id DESC
-  `)
-    .bind(clientId)
-    .all();
-
-  return c.json(results);
-});
-
-// Adicionar favorito
-app.post("/clients/:id/favorites", async (c) => {
-  const clientId = parseId(c.req.param("id"));
-
-  if (!clientId) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  if (!(await clientExists(c.env.DB, clientId))) {
-    return c.json({
-      error: "Cliente não encontrado.",
-    }, 404);
-  }
-
-  const body = await c.req.json().catch(() => null);
-  const productId = Number(body?.productId);
-
-  if (!Number.isInteger(productId) || productId <= 0) {
-    return c.json({
-      error: "Informe productId válido.",
-    }, 400);
-  }
-
-  const product = await fakeStore(`/products/${productId}`);
-
-  if (!product) {
-    return c.json({
-      error: "Produto não existe na Fake Store API.",
-    }, 404);
+  if (!Number.isInteger(id) || id <= 0) {
+    return c.json(
+      { error: "ID inválido." },
+      400
+    );
   }
 
   try {
-    const saved = await c.env.DB.prepare(`
-      INSERT INTO favorites
-        (client_id, product_id, title, price, category, image)
+    const client = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE id = ?
+    `)
+      .bind(id)
+      .first();
+
+    if (!client) {
+      return c.json(
+        { error: "Cliente não encontrado." },
+        404
+      );
+    }
+
+    await c.env.DB.batch([
+      c.env.DB.prepare(`
+        DELETE FROM favorites WHERE client_id = ?
+      `).bind(id),
+
+      c.env.DB.prepare(`
+        DELETE FROM clients WHERE id = ?
+      `).bind(id)
+    ]);
+
+    return c.json({
+      message: "Cliente excluído com sucesso!"
+    });
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Erro ao excluir cliente." },
+      500
+    );
+  }
+});
+
+// =====================================================
+// PRODUTOS - FAKE STORE API
+// =====================================================
+
+// LISTAR PRODUTOS
+app.get("/products", async (c) => {
+  try {
+    const response = await fetch(`${FAKE_STORE}/products`);
+
+    if (!response.ok) {
+      return c.json(
+        { error: "Erro ao consultar produtos externos." },
+        502
+      );
+    }
+
+    const products = await response.json();
+
+    return c.json(products);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Não foi possível carregar os produtos." },
+      500
+    );
+  }
+});
+
+// BUSCAR PRODUTO POR ID
+app.get("/products/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return c.json(
+      { error: "ID de produto inválido." },
+      400
+    );
+  }
+
+  try {
+    const response = await fetch(
+      `${FAKE_STORE}/products/${id}`
+    );
+
+    if (response.status === 404) {
+      return c.json(
+        { error: "Produto não encontrado." },
+        404
+      );
+    }
+
+    if (!response.ok) {
+      return c.json(
+        { error: "Erro ao consultar produto externo." },
+        502
+      );
+    }
+
+    const product = await response.json();
+
+    return c.json(product);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Não foi possível buscar o produto." },
+      500
+    );
+  }
+});
+
+// LISTAR CATEGORIAS
+app.get("/categories", async (c) => {
+  try {
+    const response = await fetch(
+      `${FAKE_STORE}/products/categories`
+    );
+
+    if (!response.ok) {
+      return c.json(
+        { error: "Erro ao consultar categorias." },
+        502
+      );
+    }
+
+    const categories = await response.json();
+
+    return c.json(categories);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Não foi possível carregar as categorias." },
+      500
+    );
+  }
+});
+
+// =====================================================
+// PRODUTOS FAVORITOS
+// =====================================================
+
+// LISTAR FAVORITOS DO CLIENTE
+app.get("/clients/:id/favorites", async (c) => {
+  const clientId = Number(c.req.param("id"));
+
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    return c.json(
+      { error: "ID do cliente inválido." },
+      400
+    );
+  }
+
+  try {
+    const client = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE id = ?
+    `)
+      .bind(clientId)
+      .first();
+
+    if (!client) {
+      return c.json(
+        { error: "Cliente não encontrado." },
+        404
+      );
+    }
+
+    const result = await c.env.DB.prepare(`
+      SELECT
+        id,
+        client_id,
+        product_id,
+        title,
+        price,
+        category,
+        image,
+        created_at
+      FROM favorites
+      WHERE client_id = ?
+      ORDER BY id DESC
+    `)
+      .bind(clientId)
+      .all();
+
+    return c.json(result.results);
+  } catch (error) {
+    console.error(error);
+
+    return c.json(
+      { error: "Erro ao buscar favoritos." },
+      500
+    );
+  }
+});
+
+// ADICIONAR PRODUTO AOS FAVORITOS
+app.post("/clients/:id/favorites", async (c) => {
+  const clientId = Number(c.req.param("id"));
+  const body = await c.req.json().catch(() => null);
+
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    return c.json(
+      { error: "ID do cliente inválido." },
+      400
+    );
+  }
+
+  const productId = Number(body?.product_id);
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return c.json(
+      { error: "Informe um ID de produto válido." },
+      400
+    );
+  }
+
+  try {
+    const client = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE id = ?
+    `)
+      .bind(clientId)
+      .first();
+
+    if (!client) {
+      return c.json(
+        { error: "Cliente não encontrado." },
+        404
+      );
+    }
+
+    const existingFavorite = await c.env.DB.prepare(`
+      SELECT id FROM favorites
+      WHERE client_id = ? AND product_id = ?
+    `)
+      .bind(clientId, productId)
+      .first();
+
+    if (existingFavorite) {
+      return c.json(
+        { error: "Este produto já está nos favoritos." },
+        409
+      );
+    }
+
+    const response = await fetch(
+      `${FAKE_STORE}/products/${productId}`
+    );
+
+    if (response.status === 404) {
+      return c.json(
+        { error: "Produto não encontrado na loja." },
+        404
+      );
+    }
+
+    if (!response.ok) {
+      return c.json(
+        { error: "Erro ao consultar produto externo." },
+        502
+      );
+    }
+
+    const product = await response.json();
+
+    await c.env.DB.prepare(`
+      INSERT INTO favorites (
+        client_id,
+        product_id,
+        title,
+        price,
+        category,
+        image
+      )
       VALUES (?, ?, ?, ?, ?, ?)
-      RETURNING product_id AS productId, title, price,
-                category, image, created_at
     `)
       .bind(
         clientId,
@@ -415,59 +761,98 @@ app.post("/clients/:id/favorites", async (c) => {
         product.category,
         product.image
       )
-      .first();
+      .run();
 
-    return c.json(saved, 201);
+    return c.json(
+      {
+        message: "Produto adicionado aos favoritos!",
+        product
+      },
+      201
+    );
+  } catch (error) {
+    console.error(error);
 
-  } catch (e) {
-    if (String(e).includes("UNIQUE")) {
-      return c.json({
-        error: "Produto já está nos favoritos.",
-      }, 409);
+    return c.json(
+      { error: "Erro ao adicionar favorito." },
+      500
+    );
+  }
+});
+
+// REMOVER PRODUTO DOS FAVORITOS
+app.delete(
+  "/clients/:id/favorites/:productId",
+  async (c) => {
+    const clientId = Number(c.req.param("id"));
+    const productId = Number(c.req.param("productId"));
+
+    if (
+      !Number.isInteger(clientId) ||
+      clientId <= 0 ||
+      !Number.isInteger(productId) ||
+      productId <= 0
+    ) {
+      return c.json(
+        { error: "ID inválido." },
+        400
+      );
     }
 
-    throw e;
+    try {
+      const favorite = await c.env.DB.prepare(`
+        SELECT id FROM favorites
+        WHERE client_id = ? AND product_id = ?
+      `)
+        .bind(clientId, productId)
+        .first();
+
+      if (!favorite) {
+        return c.json(
+          { error: "Favorito não encontrado." },
+          404
+        );
+      }
+
+      await c.env.DB.prepare(`
+        DELETE FROM favorites
+        WHERE client_id = ? AND product_id = ?
+      `)
+        .bind(clientId, productId)
+        .run();
+
+      return c.json({
+        message: "Produto removido dos favoritos!"
+      });
+    } catch (error) {
+      console.error(error);
+
+      return c.json(
+        { error: "Erro ao remover favorito." },
+        500
+      );
+    }
   }
-});
-
-// Remover favorito
-app.delete("/clients/:id/favorites/:productId", async (c) => {
-  const clientId = parseId(c.req.param("id"));
-  const productId = parseId(c.req.param("productId"));
-
-  if (!clientId || !productId) {
-    return c.json({ error: "ID inválido." }, 400);
-  }
-
-  const result = await c.env.DB.prepare(`
-    DELETE FROM favorites
-    WHERE client_id = ? AND product_id = ?
-  `)
-    .bind(clientId, productId)
-    .run();
-
-  if (!result.meta.changes) {
-    return c.json({
-      error: "Favorito não encontrado.",
-    }, 404);
-  }
-
-  return c.body(null, 204);
-});
-
-// ---------- Erros ----------
-
-app.notFound((c) =>
-  c.json({ error: "Rota não encontrada." }, 404)
 );
 
-app.onError((err, c) => {
-  console.error(err);
+// =====================================================
+// TRATAMENTO DE ERROS
+// =====================================================
 
-  return c.json({
-    error: "Erro interno.",
-    detail: err.message,
-  }, 502);
+app.notFound((c) => {
+  return c.json(
+    { error: "Rota não encontrada." },
+    404
+  );
+});
+
+app.onError((error, c) => {
+  console.error("Erro interno:", error);
+
+  return c.json(
+    { error: "Erro interno do servidor." },
+    500
+  );
 });
 
 export default app;
