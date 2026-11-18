@@ -844,4 +844,3 @@ $("#delete-client").addEventListener("click", async () => {
   }
 
 })();
- 
